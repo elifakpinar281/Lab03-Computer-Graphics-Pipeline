@@ -1,57 +1,80 @@
 package at.fhv.sysarch.lab3.pipeline;
 
+import com.hackoeur.jglm.Mat4;
+import com.hackoeur.jglm.Matrices;
+
 import at.fhv.sysarch.lab3.animation.AnimationRenderer;
+import at.fhv.sysarch.lab3.obj.Face;
 import at.fhv.sysarch.lab3.obj.Model;
+import at.fhv.sysarch.lab3.pipeline.data.Pair;
+import at.fhv.sysarch.lab3.pipeline.push.BackfaceCullingPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.ColoringPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.DepthSortingPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.FlatShadingPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.ModelViewPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.PerspectiveDivisionPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.ProjectionPushFilter;
+import at.fhv.sysarch.lab3.pipeline.push.PushPipe;
+import at.fhv.sysarch.lab3.pipeline.push.RendererPushSink;
+import at.fhv.sysarch.lab3.pipeline.push.ViewportPushFilter;
 import javafx.animation.AnimationTimer;
+import javafx.scene.paint.Color;
 
 public class PushPipelineFactory {
+    private static final float ROTATION_SPEED_RAD_PER_SEC = (float) Math.PI / 2.0f;
+
     public static AnimationTimer createPipeline(PipelineData pd) {
-        // TODO: push from the source (model)
+        RendererPushSink sink = new RendererPushSink(
+                pd.getGraphicsContext(),
+                pd.getRenderingMode());
 
-        // TODO 1. perform model-view transformation from model to VIEW SPACE coordinates
+        ViewportPushFilter viewport = new ViewportPushFilter(pd.getViewportTransform());
+        viewport.setSuccessor(sink);
 
-        // TODO 2. perform backface culling in VIEW SPACE
+        PerspectiveDivisionPushFilter perspectiveDiv = new PerspectiveDivisionPushFilter();
+        perspectiveDiv.setSuccessor(viewport);
 
-        // TODO 3. perform depth sorting in VIEW SPACE
+        ProjectionPushFilter projection = new ProjectionPushFilter(pd.getProjTransform());
+        projection.setSuccessor(perspectiveDiv);
 
-        // TODO 4. add coloring (space unimportant)
-
-        // lighting can be switched on/off
+        PushPipe<Pair<Face, Color>> afterColoring;
         if (pd.isPerformLighting()) {
-            // 4a. TODO perform lighting in VIEW SPACE
-            
-            // 5. TODO perform projection transformation on VIEW SPACE coordinates
+            FlatShadingPushFilter shading = new FlatShadingPushFilter(pd.getLightPos());
+            shading.setSuccessor(projection);
+            afterColoring = shading;
         } else {
-            // 5. TODO perform projection transformation
+            afterColoring = projection;
         }
 
-        // TODO 6. perform perspective division to screen coordinates
+        ColoringPushFilter coloring = new ColoringPushFilter(pd.getModelColor());
+        coloring.setSuccessor(afterColoring);
 
-        // TODO 7. feed into the sink (renderer)
+        DepthSortingPushFilter depthSort = new DepthSortingPushFilter();
+        depthSort.setSuccessor(coloring);
 
-        // returning an animation renderer which handles clearing of the
-        // viewport and computation of the praction
+        BackfaceCullingPushFilter culling = new BackfaceCullingPushFilter();
+        culling.setSuccessor(depthSort);
+        Mat4 initialMv = pd.getViewTransform().multiply(pd.getModelTranslation());
+        ModelViewPushFilter modelView = new ModelViewPushFilter(initialMv);
+        modelView.setSuccessor(culling);
+
         return new AnimationRenderer(pd) {
-            // TODO rotation variable goes in here
 
-            /** This method is called for every frame from the JavaFX Animation
-             * system (using an AnimationTimer, see AnimationRenderer). 
-             * @param fraction the time which has passed since the last render call in a fraction of a second
-             * @param model    the model to render 
-             */
+            private float rotationAngle = 0.0f;
+
             @Override
             protected void render(float fraction, Model model) {
+                rotationAngle += ROTATION_SPEED_RAD_PER_SEC * fraction;
+                Mat4 rotation = Matrices.rotate(rotationAngle, pd.getModelRotAxis());
+                Mat4 modelMatrix = pd.getModelTranslation().multiply(rotation);
+                Mat4 modelViewMatrix = pd.getViewTransform().multiply(modelMatrix);
 
-                // TODO compute rotation in radians
+                modelView.setModelViewMatrix(modelViewMatrix);
 
-                // TODO create new model rotation matrix using pd.modelRotAxis
-
-                // TODO compute updated model-view tranformation
-
-                // TODO update model-view filter
-
-                // TODO trigger rendering of the pipeline
-
+                for (Face f : model.getFaces()) {
+                    modelView.process(f);
+                }
+                modelView.flush();
             }
         };
     }
