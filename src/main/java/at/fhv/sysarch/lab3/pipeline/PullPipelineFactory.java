@@ -52,6 +52,9 @@ public class PullPipelineFactory {
         ViewportPullFilter viewport = new ViewportPullFilter(pd.getViewportTransform());
         viewport.setPredecessor(perspDiv);
 
+        RendererPullSink sink = new RendererPullSink(
+                viewport, pd.getGraphicsContext(), pd.getRenderingMode());
+
         // returning an animation renderer which handles clearing of the
         // viewport and computation of the praction
         return new AnimationRenderer(pd) {
@@ -71,51 +74,7 @@ public class PullPipelineFactory {
                 Mat4 modelViewMatrix = pd.getViewTransform().multiply(modelMatrix);
 
                 modelView.setModelViewMatrix(modelViewMatrix);
-
-                viewport.reset();
-
-                GraphicsContext gc = pd.getGraphicsContext();
-                RenderingMode mode = pd.getRenderingMode();
-
-                double[] xs = new double[3];
-                double[] ys = new double[3];
-
-                Pair<Face, Color> result;
-                while ((result = viewport.pull()) != null) {
-                    Face f = result.fst();
-                    Color c = result.snd();
-
-                    Vec2 p1 = f.getV1().toScreen();
-                    Vec2 p2 = f.getV2().toScreen();
-                    Vec2 p3 = f.getV3().toScreen();
-
-                    xs[0] = p1.getX();
-                    xs[1] = p2.getX();
-                    xs[2] = p3.getX();
-                    ys[0] = p1.getY();
-                    ys[1] = p2.getY();
-                    ys[2] = p3.getY();
-
-                    switch (mode) {
-                        case POINT:
-                            gc.setStroke(c);
-                            gc.strokeLine(xs[0], ys[0], xs[0] + 1, ys[0] + 1);
-                            gc.strokeLine(xs[1], ys[1], xs[1] + 1, ys[1] + 1);
-                            gc.strokeLine(xs[2], ys[2], xs[2] + 1, ys[2] + 1);
-                            break;
-                        case WIREFRAME:
-                            gc.setStroke(c);
-                            gc.strokePolygon(xs, ys, 3);
-                            break;
-                        case FILLED:
-                            gc.setFill(c);
-                            gc.fillPolygon(xs, ys, 3);
-                            gc.setStroke(c);
-                            gc.strokePolygon(xs, ys, 3);
-                            break;
-                    }
-
-                }
+                sink.renderAll();
             }
         };
     }
