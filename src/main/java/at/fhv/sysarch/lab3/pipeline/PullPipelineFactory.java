@@ -110,6 +110,8 @@ public class PullPipelineFactory {
                         case FILLED:
                             gc.setFill(c);
                             gc.fillPolygon(xs, ys, 3);
+                            gc.setStroke(c);
+                            gc.strokePolygon(xs, ys, 3);
                             break;
                     }
 
