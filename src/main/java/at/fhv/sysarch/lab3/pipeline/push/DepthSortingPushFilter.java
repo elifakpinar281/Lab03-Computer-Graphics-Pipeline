@@ -6,9 +6,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import at.fhv.sysarch.lab3.obj.Face;
-
-
 public final class DepthSortingPushFilter extends AbstractPushFilter<Face, Face> {
     private final List<Face> buffer = new ArrayList<>();
     private static final Comparator<Face> FAR_TO_NEAR = (a, b) -> {
